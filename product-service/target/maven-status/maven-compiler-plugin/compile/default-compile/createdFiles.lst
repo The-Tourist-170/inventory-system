@@ -1,0 +1,8 @@
+com/tourist/microservices/product/repository/ProductRepository.class
+com/tourist/microservices/product/ProductServiceApplication.class
+com/tourist/microservices/product/dto/ProductRequest.class
+com/tourist/microservices/product/model/Product.class
+com/tourist/microservices/product/controller/ProductController.class
+com/tourist/microservices/product/service/ProductService.class
+com/tourist/microservices/product/dto/ProductResponse.class
+com/tourist/microservices/product/model/Product$ProductBuilder.class
