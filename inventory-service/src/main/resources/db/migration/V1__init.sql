@@ -1,0 +1,7 @@
+CREATE TABLE t_inventory
+(
+    id        BIGINT GENERATED ALWAYS AS IDENTITY,
+    sku_code  VARCHAR(255) DEFAULT NULL,
+    quantity  INTEGER DEFAULT NULL,
+    PRIMARY KEY (id)
+);
