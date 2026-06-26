@@ -19,6 +19,7 @@ public class ProductService {
 
     public ProductResponse createProduct(ProductRequest productRequest) {
         Product product = Product.builder()
+            .skuCode(productRequest.skuCode())
             .name(productRequest.name())
             .description(productRequest.description())
             .price(productRequest.price())
@@ -27,6 +28,7 @@ public class ProductService {
         log.info("Product created: {}", product);
         return new ProductResponse(
             product.getId(),
+            product.getSkuCode(),
             product.getName(),
             product.getDescription(),
             product.getPrice()
@@ -40,6 +42,7 @@ public class ProductService {
             .map(product ->
                 new ProductResponse(
                     product.getId(),
+                    product.getSkuCode(),
                     product.getName(),
                     product.getDescription(),
                     product.getPrice()

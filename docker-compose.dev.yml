@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: inventory-postgres-dev
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  mongo:
+    image: mongo:latest
+    container_name: inventory-mongo-dev
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: productService
+    ports:
+      - "6543:27017"
+    volumes:
+      - mongo-dev-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet localhost:27017/test
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-dev-data:
+  mongo-dev-data:

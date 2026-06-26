@@ -1,0 +1,454 @@
+{
+  "info": {
+    "name": "Inventory System",
+    "description": "# Inventory Microservices System\n\nA collection of all REST API endpoints for the inventory system, organized by service: Product, Inventory, Order, and API Gateway.\n\n## Variables\n| Variable | Default |\n|---|---|\n| `productUrl` | `http://localhost:8080` |\n| `inventoryUrl` | `http://localhost:8082` |\n| `orderUrl` | `http://localhost:8081` |\n| `gatewayUrl` | `http://localhost:9000` |\n\n## Workflow\n1. **Create Product** → registers a product with an skuCode\n2. **Create Inventory** → sets initial stock for that skuCode\n3. **Restock Inventory** → adds stock quantity\n4. **Place Order** → validates stock via inventory-service, then creates the order",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "productUrl",   "value": "http://localhost:8080" },
+    { "key": "inventoryUrl", "value": "http://localhost:8082" },
+    { "key": "orderUrl",     "value": "http://localhost:8081" },
+    { "key": "gatewayUrl",   "value": "http://localhost:9000" }
+  ],
+  "item": [
+    {
+      "name": "Product Service",
+      "description": "Endpoints for managing products. Uses MongoDB via Spring Data MongoDB. Runs on port 8080.",
+      "item": [
+        {
+          "name": "Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response has an id\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property(\"id\");",
+                  "    pm.collectionVariables.set(\"lastSkuCode\", json.skuCode);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "Creates a new product in the catalog.\n\n**Request Body:**\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `name` | String | Yes | Product name |\n| `description` | String | No | Product description |\n| `price` | BigDecimal | Yes | Unit price (e.g. 999.99) |\n| `skuCode` | String | Yes | Stock keeping unit code (used to link with inventory) |\n\n**Response:** 201 Created — returns the created product with generated MongoDB `id`.",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"iPhone 15\",\n  \"description\": \"Apple iPhone 15 128GB\",\n  \"price\": 799.99,\n  \"skuCode\": \"iphone_15\"\n}"
+            },
+            "url": {
+              "raw": "{{productUrl}}/api/product",
+              "host": ["{{productUrl}}"],
+              "path": ["api", "product"]
+            }
+          }
+        },
+        {
+          "name": "List All Products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "Returns all products in the catalog.\n\n**Response:** 200 OK — list of `ProductResponse` objects, each containing `id`, `skuCode`, `name`, `description`, `price`.",
+            "url": {
+              "raw": "{{productUrl}}/api/product",
+              "host": ["{{productUrl}}"],
+              "path": ["api", "product"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory Service",
+      "description": "Endpoints for managing stock levels. Uses PostgreSQL with Spring Data JPA + Flyway. Runs on port 8082.",
+      "item": [
+        {
+          "name": "Check Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "Checks whether a product has sufficient stock for the requested quantity.\n\n**Query Parameters:**\n| Param | Type | Required | Description |\n|---|---|---|---|\n| `skuCode` | String | Yes | Product SKU code |\n| `quantity` | Integer | Yes | Desired quantity to check |\n\n**Response:** 200 OK — `true` if stock is sufficient, `false` otherwise.",
+            "url": {
+              "raw": "{{inventoryUrl}}/api/inventory?skuCode=iphone_15&quantity=1",
+              "host": ["{{inventoryUrl}}"],
+              "path": ["api", "inventory"],
+              "query": [
+                { "key": "skuCode",  "value": "iphone_15", "description": "Product SKU to check" },
+                { "key": "quantity", "value": "1",          "description": "Number of units to check" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Inventory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response has skuCode and quantity\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property(\"skuCode\");",
+                  "    pm.expect(json).to.have.property(\"quantity\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "Creates a new inventory record for a product SKU. Fails with 409 Conflict if the SKU already exists.\n\n**Request Body:**\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `skuCode` | String | Yes | Product SKU code |\n| `quantity` | Integer | Yes | Initial stock quantity |\n\n**Response:** 201 Created — returns the created inventory record (`id`, `skuCode`, `quantity`).\n**Errors:** 409 if SKU already has an inventory record.",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skuCode\": \"iphone_15\",\n  \"quantity\": 100\n}"
+            },
+            "url": {
+              "raw": "{{inventoryUrl}}/api/inventory",
+              "host": ["{{inventoryUrl}}"],
+              "path": ["api", "inventory"]
+            }
+          }
+        },
+        {
+          "name": "Restock Inventory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Quantity increased\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.quantity).to.be.at.least(pm.variables.get(\"restockAmount\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "description": "Adds stock to an existing inventory record. Only increases quantity (does not replace).\n\n**Path Parameter:**\n| Param | Type | Description |\n|---|---|---|\n| `skuCode` | String | Product SKU to restock |\n\n**Request Body:**\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `quantity` | Integer | Yes | Amount to add (must be > 0) |\n\n**Response:** 200 OK — returns updated inventory record.\n**Errors:** 404 if SKU not found, 400 if quantity ≤ 0.",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 50\n}"
+            },
+            "url": {
+              "raw": "{{inventoryUrl}}/api/inventory/iphone_15/restock",
+              "host": ["{{inventoryUrl}}"],
+              "path": ["api", "inventory", "iphone_15", "restock"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Service",
+      "description": "Endpoint for placing orders. Uses PostgreSQL + OpenFeign to validate stock with inventory-service. Runs on port 8081.",
+      "item": [
+        {
+          "name": "Place Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response confirms order\", function () {",
+                  "    pm.expect(pm.response.text()).to.include(\"Order placed successfully\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "Places a new order. Before creating, the order-service calls inventory-service via OpenFeign to validate stock. If stock is insufficient, returns a 500 error with `\"<skuCode> is not in stock\"`.\n\n**Request Body:**\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `skuCode` | String | Yes | Product SKU to order |\n| `price` | BigDecimal | Yes | Price per unit |\n| `quantity` | Integer | Yes | Number of units to order |\n\n**Response:** 201 Created — `\"Order placed successfully\"` (plain text).\n**Errors:** 500 if stock is insufficient (checked via inventory-service Feign client).",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skuCode\": \"iphone_15\",\n  \"price\": 799.99,\n  \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "{{orderUrl}}/api/order",
+              "host": ["{{orderUrl}}"],
+              "path": ["api", "order"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Gateway",
+      "description": "Spring Cloud Gateway Server MVC. Routes requests to the appropriate backend service. Runs on port 9000.\n\nAll requests below go through the gateway, which then forwards them to the actual service. Use these for an end-to-end test of the full system.",
+      "item": [
+        {
+          "name": "Product Service",
+          "description": "Gateway routes to product-service. Path prefix `/api/product` → `http://localhost:8080`.",
+          "item": [
+            {
+              "name": "Create Product",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Response has an id\", function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json).to.have.property(\"id\");",
+                      "    pm.collectionVariables.set(\"lastSkuCode\", json.skuCode);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "description": "Creates a new product through the API gateway. The gateway forwards the request to product-service at port 8080.\n\nSame request body as the direct Product Service endpoint.",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"iPhone 15\",\n  \"description\": \"Apple iPhone 15 128GB\",\n  \"price\": 799.99,\n  \"skuCode\": \"iphone_15\"\n}"
+                },
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/product",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "product"]
+                }
+              }
+            },
+            {
+              "name": "List All Products",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response is an array\", function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Lists all products through the API gateway. Gateway forwards to product-service.",
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/product",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "product"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inventory Service",
+          "description": "Gateway routes to inventory-service. Path prefix `/api/inventory` → `http://localhost:8082`.",
+          "item": [
+            {
+              "name": "Check Stock",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Checks stock through the API gateway. Gateway forwards to inventory-service.",
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/inventory?skuCode=iphone_15&quantity=1",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "inventory"],
+                  "query": [
+                    { "key": "skuCode",  "value": "iphone_15" },
+                    { "key": "quantity", "value": "1" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Inventory",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "description": "Creates an inventory record through the API gateway.",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"skuCode\": \"iphone_15\",\n  \"quantity\": 100\n}"
+                },
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/inventory",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "inventory"]
+                }
+              }
+            },
+            {
+              "name": "Restock Inventory",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "description": "Restocks inventory through the API gateway.",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quantity\": 50\n}"
+                },
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/inventory/iphone_15/restock",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "inventory", "iphone_15", "restock"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order Service",
+          "description": "Gateway routes to order-service. Path prefix `/api/order` → `http://localhost:8081`.",
+          "item": [
+            {
+              "name": "Place Order",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Response confirms order\", function () {",
+                      "    pm.expect(pm.response.text()).to.include(\"Order placed successfully\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "description": "Places an order through the API gateway. The gateway forwards to order-service, which then calls inventory-service internally via Feign to validate stock.",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"skuCode\": \"iphone_15\",\n  \"price\": 799.99,\n  \"quantity\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/order",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "order"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: inventory-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  mongo:
+    image: mongo:latest
+    container_name: inventory-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: productService
+    ports:
+      - "6543:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet localhost:27017/test
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  inventory-service:
+    build: ./inventory-service
+    container_name: inventory-service
+    ports:
+      - "8082:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/inventory_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_service
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+
+  product-service:
+    build: ./product-service
+    container_name: product-service
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_MONGODB_URI: mongodb://admin:admin123@mongo:27017/productService?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "9000:9000"
+    environment:
+      PRODUCT_SERVICE_URL: http://product-service:8080
+      ORDER_SERVICE_URL: http://order-service:8081
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+    depends_on:
+      - product-service
+      - order-service
+      - inventory-service
+
+volumes:
+  postgres-data:
+  mongo-data:
