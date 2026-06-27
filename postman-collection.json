@@ -228,6 +228,208 @@
       "description": "Spring Cloud Gateway Server MVC. Routes requests to the appropriate backend service. Runs on port 9000.\n\nAll requests below go through the gateway, which then forwards them to the actual service. Use these for an end-to-end test of the full system.",
       "item": [
         {
+          "name": "Monitoring & Health",
+          "description": "Actuator endpoints for monitoring gateway health, circuit breaker state, and system metrics.",
+          "item": [
+            {
+              "name": "All Endpoints",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Lists all available actuator endpoints exposed by the gateway.\n\n**Response:** 200 OK — JSON object with `_links` containing all available actuator paths (health, circuitbreakers, metrics, etc.).",
+                "url": {
+                  "raw": "{{gatewayUrl}}/actuator",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["actuator"]
+                }
+              }
+            },
+            {
+              "name": "Health Check",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Overall status is UP\", function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.status).to.eql(\"UP\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns the overall health of the gateway, including circuit breaker status.\n\n**Response:** 200 OK — JSON with `status: \"UP\"` (or `\"DOWN\"` if unhealthy), plus per-component details (circuitBreakers, etc.).",
+                "url": {
+                  "raw": "{{gatewayUrl}}/actuator/health",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["actuator", "health"]
+                }
+              }
+            },
+            {
+              "name": "Circuit Breaker — List All",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response contains circuit breakers\", function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.circuitBreakers).to.exist;",
+                      "    pm.expect(json.circuitBreakers).to.be.an(\"object\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns the state and metrics of all circuit breakers.\n\n**Response:** 200 OK — JSON with `circuitBreakers` object containing each named breaker's:\n- `state`: `CLOSED`, `OPEN`, `HALF_OPEN`, or `FORCED_OPEN`\n- `failureRate`: percentage of failed calls\n- `numberOfBufferedCalls`: calls in the sliding window\n- `numberOfFailedCalls`, `numberOfSuccessfulCalls`, etc.\n\n**Circuit opens at:** 50% failure rate, min 5 calls in sliding window of 10.",
+                "url": {
+                  "raw": "{{gatewayUrl}}/actuator/circuitbreakers",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["actuator", "circuitbreakers"]
+                }
+              }
+            },
+            {
+              "name": "Circuit Breaker — Events",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response is an array\", function () {",
+                      "    pm.expect(pm.response.json().circuitBreakerEvents).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns recent circuit breaker state change events (OPEN → HALF_OPEN → CLOSED transitions, error/success events).\n\n**Response:** 200 OK — JSON with `circuitBreakerEvents` array of events, each containing `circuitBreakerName`, `type` (STATE_TRANSITION, ERROR, SUCCESS, etc.), `creationTime`, and `elapsedDuration`.",
+                "url": {
+                  "raw": "{{gatewayUrl}}/actuator/circuitbreakers/events",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["actuator", "circuitbreakers", "events"]
+                }
+              }
+            },
+            {
+              "name": "Metrics — HTTP Requests",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns metrics for HTTP server requests processed by the gateway.\n\n**Response:** 200 OK — JSON with `measurements` array containing COUNT, TOTAL_TIME, MAX.",
+                "url": {
+                  "raw": "{{gatewayUrl}}/actuator/metrics/http.server.requests",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["actuator", "metrics", "http.server.requests"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fallback",
+          "description": "Fallback endpoints for handling requests when services are unavailable.",
+          "item": [
+            {
+              "name": "Service Unavailable (503)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 503 Service Unavailable\", function () {",
+                      "    pm.response.to.have.status(503);",
+                      "});",
+                      "pm.test(\"Body is 'Service Unavailable'\", function () {",
+                      "    pm.expect(pm.response.text()).to.eql(\"Service Unavailable\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns a 503 Service Unavailable response. This is a static fallback route that does not depend on any backend service.\n\n**Use case:** When the circuit breaker opens for product-service, or when external systems need to detect gateway availability with a known health-check endpoint.\n\n**Response:** 503 Service Unavailable\n**Body:** `\"Service Unavailable\"`",
+                "url": {
+                  "raw": "{{gatewayUrl}}/fallbackRoute",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["fallbackRoute"]
+                }
+              }
+            },
+            {
+              "name": "Circuit Breaker — Trigger (Product Service Down)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Response received\", function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([500, 503]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "**Run this multiple times** (via Collection Runner with iteration count ≥ 10) when product-service is **NOT running**.\n\nThis triggers the circuit breaker to open after:\n- 5 minimum calls in the sliding window (size 10)\n- 50% failure rate\n\nOnce the circuit opens, all subsequent requests to `/api/product` will fast-fail immediately with a 503 (or gateway error) instead of waiting for the downstream timeout.\n\n**Check the circuit state** after running: use the `Circuit Breaker — List All` endpoint — expect `state: \"OPEN\"`.",
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/product",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "product"]
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "Product Service",
           "description": "Gateway routes to product-service. Path prefix `/api/product` → `http://localhost:8080`.",
           "item": [

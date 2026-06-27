@@ -52,8 +52,8 @@ run_service "inventory" "$GREEN" "inventory-service"
 INVENTORY_PID=$!
 run_service "order"    "$YELLOW" "order-service"
 ORDER_PID=$!
-run_service "product"  "$CYAN" "product-service"
-PRODUCT_PID=$!
+# run_service "product"  "$CYAN" "product-service"
+# PRODUCT_PID=$!
 run_service "gateway"  "$RED" "api-gateway"
 GATEWAY_PID=$!
 

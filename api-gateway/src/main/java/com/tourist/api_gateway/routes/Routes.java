@@ -1,13 +1,20 @@
 package com.tourist.api_gateway.routes;
 
+import java.net.URI;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions;
+import org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions;
 import org.springframework.cloud.gateway.server.mvc.handler.GatewayRouterFunctions;
 import org.springframework.cloud.gateway.server.mvc.handler.HandlerFunctions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.function.RequestPredicates;
 import org.springframework.web.servlet.function.RouterFunction;
+import org.springframework.web.servlet.function.RouterFunctions;
+import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
 
 @Configuration
@@ -27,6 +34,7 @@ public class Routes {
         return GatewayRouterFunctions.route("product_service")
                 .route(RequestPredicates.path("/api/product"), HandlerFunctions.http())
                 .before(BeforeFilterFunctions.uri(productServiceUrl))
+                .filter(CircuitBreakerFilterFunctions.circuitBreaker("productServiceCircuitBreaker", URI.create("forward:/fallbackRoute")))
                 .build();
     }
 
@@ -35,6 +43,7 @@ public class Routes {
         return GatewayRouterFunctions.route("order_service")
                 .route(RequestPredicates.path("/api/order"), HandlerFunctions.http())
                 .before(BeforeFilterFunctions.uri(orderServiceUrl))
+                .filter(CircuitBreakerFilterFunctions.circuitBreaker("orderServiceCircuitBreaker", URI.create("forward:/fallbackRoute")))
                 .build();
     }
 
@@ -43,6 +52,20 @@ public class Routes {
         return GatewayRouterFunctions.route("inventory_service")
                 .route(RequestPredicates.path("/api/inventory"), HandlerFunctions.http())
                 .before(BeforeFilterFunctions.uri(inventoryServiceUrl))
+                .filter(CircuitBreakerFilterFunctions.circuitBreaker("inventoryServiceCircuitBreaker", URI.create("forward:/fallbackRoute")))
                 .build();
+    }
+
+    @Bean
+    @Order(1)
+    public RouterFunction<ServerResponse> fallbackRouter() {
+        return RouterFunctions.route()
+                .GET("/fallbackRoute", this::fallbackResponse)
+                .build();
+    }
+
+    private ServerResponse fallbackResponse(ServerRequest request) {
+        return ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE) 
+                .body("Service Unavailable");
     }
 }
