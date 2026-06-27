@@ -22,6 +22,7 @@ public class GlobalExceptionHandler {
 
     private HttpStatus extractStatus(String message) {
         if (message == null) return HttpStatus.INTERNAL_SERVER_ERROR;
+        if (message.contains("unavailable")) return HttpStatus.SERVICE_UNAVAILABLE;
         if (message.contains(" 404 ")) return HttpStatus.NOT_FOUND;
         if (message.contains(" 409 ")) return HttpStatus.CONFLICT;
         if (message.contains(" 400 ")) return HttpStatus.BAD_REQUEST;
@@ -30,6 +31,8 @@ public class GlobalExceptionHandler {
 
     private String extractErrorMessage(String message) {
         if (message == null) return "Internal server error";
+
+        if (message.contains("unavailable")) return message;
 
         int jsonStart = message.indexOf("{\"error\":\"");
         if (jsonStart >= 0) {

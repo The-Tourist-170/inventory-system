@@ -220,6 +220,127 @@
               "path": ["api", "order"]
             }
           }
+        },
+        {
+          "name": "Monitoring & Health",
+          "description": "Actuator endpoints for monitoring order-service health and circuit breaker state for inventory inter-service calls.",
+          "item": [
+            {
+              "name": "Health Check",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Overall status is UP\", function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.status).to.eql(\"UP\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns the overall health of order-service, including circuit breaker status for the inventory client.\n\n**Response:** 200 OK — JSON with `status: \"UP\"` and per-component details including `circuitBreakers`.",
+                "url": {
+                  "raw": "{{orderUrl}}/actuator/health",
+                  "host": ["{{orderUrl}}"],
+                  "path": ["actuator", "health"]
+                }
+              }
+            },
+            {
+              "name": "Circuit Breaker — List All",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response contains circuit breakers\", function () {",
+                      "    var json = pm.response.json();",
+                      "    pm.expect(json.circuitBreakers).to.exist;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns the state and metrics of all circuit breakers in order-service.\n\n**Response:** 200 OK — JSON with `circuitBreakers.inventory` containing:\n- `state`: `CLOSED`, `OPEN`, `HALF_OPEN`\n- `failureRate`: percentage of failed calls\n- `numberOfBufferedCalls`: calls in the sliding window (size 10)\n- `numberOfFailedCalls`, `numberOfSuccessfulCalls`\n\n**Circuit opens at:** 50% failure rate, min 5 calls in sliding window of 10. Stays open for 5s before transitioning to HALF_OPEN.",
+                "url": {
+                  "raw": "{{orderUrl}}/actuator/circuitbreakers",
+                  "host": ["{{orderUrl}}"],
+                  "path": ["actuator", "circuitbreakers"]
+                }
+              }
+            },
+            {
+              "name": "Circuit Breaker — Events",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Returns recent circuit breaker state change events for the inventory circuit breaker.\n\n**Response:** 200 OK — JSON with `circuitBreakerEvents` array showing STATE_TRANSITION, ERROR, SUCCESS events.",
+                "url": {
+                  "raw": "{{orderUrl}}/actuator/circuitbreakers/events",
+                  "host": ["{{orderUrl}}"],
+                  "path": ["actuator", "circuitbreakers", "events"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Circuit Breaker — Trigger (Inventory Service Down)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Response received (expected 503 when circuit open)\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 500, 503]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "description": "**Run this multiple times** (Collection Runner with iteration count ≥ 10) when inventory-service is **NOT running**.\n\nThis triggers the `inventory` circuit breaker in order-service to open after:\n- 5 minimum calls in the sliding window (size 10)\n- 50% failure rate\n\nOnce open, all subsequent order requests fast-fail with **503 Service Unavailable** and body `{\"error\":\"Inventory service is temporarily unavailable\"}` instead of waiting for the downstream timeout.\n\n**Check:** After running, use `Circuit Breaker — List All` — expect `state: \"OPEN\"` for the `inventory` breaker.\n\n**Header:** Add Bearer token if Keycloak is configured.",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skuCode\": \"iphone_15\",\n  \"price\": 799.99,\n  \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "{{orderUrl}}/api/order",
+              "host": ["{{orderUrl}}"],
+              "path": ["api", "order"]
+            }
+          }
         }
       ]
     },
