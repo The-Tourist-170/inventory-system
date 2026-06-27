@@ -1,15 +1,16 @@
 package com.tourist.order.client;
 
-import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.service.annotation.GetExchange;
+import org.springframework.web.service.annotation.HttpExchange;
+import org.springframework.web.service.annotation.PostExchange;
 
-@FeignClient(value = "inventory", url = "${inventory.service.url:http://localhost:8082}")
+@HttpExchange("/api/inventory")
 public interface InventoryClient {
-    @RequestMapping(method = RequestMethod.GET, value = "/api/inventory")
-    boolean isInStock(
-        @RequestParam String skuCode,
-        @RequestParam Integer quantity
-    );
+    @GetExchange
+    boolean isInStock(@RequestParam String skuCode, @RequestParam Integer quantity);
+
+    @PostExchange("/{skuCode}/deduct")
+    void deductStock(@PathVariable String skuCode, @RequestParam Integer quantity);
 }

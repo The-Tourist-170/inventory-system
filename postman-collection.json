@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Inventory System",
-    "description": "# Inventory Microservices System\n\nA collection of all REST API endpoints for the inventory system, organized by service: Product, Inventory, Order, and API Gateway.\n\n## Variables\n| Variable | Default |\n|---|---|\n| `productUrl` | `http://localhost:8080` |\n| `inventoryUrl` | `http://localhost:8082` |\n| `orderUrl` | `http://localhost:8081` |\n| `gatewayUrl` | `http://localhost:9000` |\n\n## Workflow\n1. **Create Product** → registers a product with an skuCode\n2. **Create Inventory** → sets initial stock for that skuCode\n3. **Restock Inventory** → adds stock quantity\n4. **Place Order** → validates stock via inventory-service, then creates the order",
+    "description": "# Inventory Microservices System\n\nA collection of all REST API endpoints for the inventory system, organized by service: Product, Inventory, Order, and API Gateway.\n\n## Variables\n| Variable | Default |\n|---|---|\n| `productUrl` | `http://localhost:8080` |\n| `inventoryUrl` | `http://localhost:8082` |\n| `orderUrl` | `http://localhost:8081` |\n| `gatewayUrl` | `http://localhost:9000` |\n\n## Workflow\n1. **Create Product** → registers a product with an skuCode\n2. **Restock Inventory** → adds stock quantity (product must already exist in product-service)\n3. **Place Order** → validates stock via inventory-service, then creates the order",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -104,7 +104,7 @@
           ],
           "request": {
             "method": "GET",
-            "description": "Checks whether a product has sufficient stock for the requested quantity.\n\n**Query Parameters:**\n| Param | Type | Required | Description |\n|---|---|---|---|\n| `skuCode` | String | Yes | Product SKU code |\n| `quantity` | Integer | Yes | Desired quantity to check |\n\n**Response:** 200 OK — `true` if stock is sufficient, `false` otherwise.",
+            "description": "Checks whether a product has sufficient stock for the requested quantity. Validates that the product exists in product-service first (returns 404 if not found).\n\n**Query Parameters:**\n| Param | Type | Required | Description |\n|---|---|---|---|\n| `skuCode` | String | Yes | Product SKU code |\n| `quantity` | Integer | Yes | Desired quantity to check |\n\n**Response:** 200 OK — `true` if stock is sufficient, `false` otherwise.\n**Errors:** 404 if product does not exist.",
             "url": {
               "raw": "{{inventoryUrl}}/api/inventory?skuCode=iphone_15&quantity=1",
               "host": ["{{inventoryUrl}}"],
@@ -113,43 +113,6 @@
                 { "key": "skuCode",  "value": "iphone_15", "description": "Product SKU to check" },
                 { "key": "quantity", "value": "1",          "description": "Number of units to check" }
               ]
-            }
-          }
-        },
-        {
-          "name": "Create Inventory",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status is 201 Created\", function () {",
-                  "    pm.response.to.have.status(201);",
-                  "});",
-                  "pm.test(\"Response has skuCode and quantity\", function () {",
-                  "    var json = pm.response.json();",
-                  "    pm.expect(json).to.have.property(\"skuCode\");",
-                  "    pm.expect(json).to.have.property(\"quantity\");",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "description": "Creates a new inventory record for a product SKU. Fails with 409 Conflict if the SKU already exists.\n\n**Request Body:**\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `skuCode` | String | Yes | Product SKU code |\n| `quantity` | Integer | Yes | Initial stock quantity |\n\n**Response:** 201 Created — returns the created inventory record (`id`, `skuCode`, `quantity`).\n**Errors:** 409 if SKU already has an inventory record.",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"skuCode\": \"iphone_15\",\n  \"quantity\": 100\n}"
-            },
-            "url": {
-              "raw": "{{inventoryUrl}}/api/inventory",
-              "host": ["{{inventoryUrl}}"],
-              "path": ["api", "inventory"]
             }
           }
         },
@@ -174,7 +137,7 @@
           ],
           "request": {
             "method": "PUT",
-            "description": "Adds stock to an existing inventory record. Only increases quantity (does not replace).\n\n**Path Parameter:**\n| Param | Type | Description |\n|---|---|---|\n| `skuCode` | String | Product SKU to restock |\n\n**Request Body:**\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `quantity` | Integer | Yes | Amount to add (must be > 0) |\n\n**Response:** 200 OK — returns updated inventory record.\n**Errors:** 404 if SKU not found, 400 if quantity ≤ 0.",
+            "description": "Adds stock to an existing inventory record. Validates that the product exists in product-service first. Only increases quantity (does not replace).\n\n**Path Parameter:**\n| Param | Type | Description |\n|---|---|---|\n| `skuCode` | String | Product SKU to restock |\n\n**Request Body:**\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `quantity` | Integer | Yes | Amount to add (must be > 0) |\n\n**Response:** 200 OK — returns updated inventory record.\n**Errors:** 404 if product or SKU not found, 400 if quantity ≤ 0.",
             "header": [
               { "key": "Content-Type", "value": "application/json" }
             ],
@@ -186,6 +149,34 @@
               "raw": "{{inventoryUrl}}/api/inventory/iphone_15/restock",
               "host": ["{{inventoryUrl}}"],
               "path": ["api", "inventory", "iphone_15", "restock"]
+            }
+          }
+        },
+        {
+          "name": "List All Inventory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "description": "Returns all inventory records with their skuCode and current quantity.\n\n**Response:** 200 OK — array of inventory objects: `[{id, skuCode, quantity}, ...]`.",
+            "url": {
+              "raw": "{{inventoryUrl}}/api/inventory/all",
+              "host": ["{{inventoryUrl}}"],
+              "path": ["api", "inventory", "all"]
             }
           }
         }
@@ -342,38 +333,6 @@
               }
             },
             {
-              "name": "Create Inventory",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "pm.test(\"Status is 201 Created\", function () {",
-                      "    pm.response.to.have.status(201);",
-                      "});"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "description": "Creates an inventory record through the API gateway.",
-                "header": [
-                  { "key": "Content-Type", "value": "application/json" }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"skuCode\": \"iphone_15\",\n  \"quantity\": 100\n}"
-                },
-                "url": {
-                  "raw": "{{gatewayUrl}}/api/inventory",
-                  "host": ["{{gatewayUrl}}"],
-                  "path": ["api", "inventory"]
-                }
-              }
-            },
-            {
               "name": "Restock Inventory",
               "event": [
                 {
@@ -402,6 +361,34 @@
                   "raw": "{{gatewayUrl}}/api/inventory/iphone_15/restock",
                   "host": ["{{gatewayUrl}}"],
                   "path": ["api", "inventory", "iphone_15", "restock"]
+                }
+              }
+            },
+            {
+              "name": "List All Inventory",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status is 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response is an array\", function () {",
+                      "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "description": "Lists all inventory records through the API gateway.",
+                "url": {
+                  "raw": "{{gatewayUrl}}/api/inventory/all",
+                  "host": ["{{gatewayUrl}}"],
+                  "path": ["api", "inventory", "all"]
                 }
               }
             }

@@ -1,9 +1,9 @@
 package com.tourist.inventory.controller;
 
-import com.tourist.inventory.dto.InventoryRequest;
 import com.tourist.inventory.dto.RestockRequest;
 import com.tourist.inventory.model.Inventory;
 import com.tourist.inventory.service.InventoryService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,18 +34,6 @@ public class InventoryController {
         return ResponseEntity.ok(result);
     }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<Inventory> createInventory(
-        @RequestBody InventoryRequest request
-    ) {
-        Inventory result = inventoryService.createInventory(
-            request.skuCode(),
-            request.quantity()
-        );
-        return ResponseEntity.status(HttpStatus.CREATED).body(result);
-    }
-
     @PutMapping("/{skuCode}/restock")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Inventory> restockInventory(
@@ -57,5 +45,21 @@ public class InventoryController {
             request.quantity()
         );
         return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{skuCode}/deduct")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<Inventory> deductStock(
+        @PathVariable String skuCode,
+        @RequestParam Integer quantity
+    ) {
+        Inventory result = inventoryService.deductStock(skuCode, quantity);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/all")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<List<Inventory>> getAllInventory() {
+        return ResponseEntity.ok(inventoryService.getAllInventory());
     }
 }

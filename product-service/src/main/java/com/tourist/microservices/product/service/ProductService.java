@@ -35,6 +35,10 @@ public class ProductService {
         );
     }
 
+    public boolean existsBySkuCode(String skuCode) {
+        return productRepository.existsBySkuCode(skuCode);
+    }
+
     public List<ProductResponse> getAllProducts() {
         return productRepository
             .findAll()

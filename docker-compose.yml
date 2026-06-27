@@ -37,12 +37,15 @@ services:
     build: ./inventory-service
     container_name: inventory-service
     ports:
-      - "8082:
+      - "8082:8082"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/inventory_service
+      PRODUCT_SERVICE_URL: http://product-service:8080
     depends_on:
       postgres:
         condition: service_healthy
+      product-service:
+        condition: service_started
 
   order-service:
     build: ./order-service
@@ -83,6 +86,41 @@ services:
       - order-service
       - inventory-service
 
+  keycloak-postgres:
+    container_name: keycloak-postgres
+    image: postgres:latest
+    volumes:
+      - keycloak-pgdata:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:latest
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./docker/keycloak/realms/:/opt/keycloak/data/import/
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   mongo-data:
+  keycloak-pgdata:
